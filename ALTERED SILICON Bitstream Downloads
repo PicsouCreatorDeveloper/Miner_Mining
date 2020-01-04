@@ -1,0 +1,72 @@
+Instructions on how to run AS RVN miner on BCU FPGA cards
+Package Content:
+as_miner_*.tar.gz -> Miner software + script(s)
+as_x16r_bitstreams_*.tar.gz -> Bitstreams
+as_xdma_driver_*.tar.gz -> Xilinx XDMA drivers
+NOTE! Miner has been tested on Ubuntu 18.04 Operating system. This version of Ubuntu is strongly recommended. Dependency issues may occur on other Linux distributions. Windows is not supported.
+To be able to run AS X16R miner:
+a) The user must have at least 2 x BCU FPGA cards available.
+b) Each pair of BCUs must be connected with dual QSFP cables. Connection should be Top to Top and Bottom to Bottom. Dont connect cables in a cross!
+c) Program FPGAs through USB cable.
+d) Make sure PCIe communication is established through Xilinx PCIe XDMA drivers.
+e) Make sure sufficient cooling is used to cool FPGA boards, otherwise hashrate will be affected.
+
+Steps to get the miner running:
+1) untar as_x16r_bitstreams_*.tar.gz
+
+2) Program FPGAs with either bitstreams/top.bit or if required flash SPI memory with bitstreams/top.mcs
+NOTE! It is assumed that the user is well aware of how to program FPGA through USB cable in either Vivado_Lab environment or with the help of NextJtag software.
+3) Untar as_miner_*.tar.gz in the same directory where "bitstreams" directory is residing, as software will look for this directory to find required partial bitstreams.
+"program_devices.tcl" script is provided to automate FPGA programming. It programs FPGAs sequentially, though can be run in parallel when time is allocated to improve it.
+To program FPGAs sequentially over USB, please issue the following command:
+"vivado_lab -mode batch -source program_devices.tcl"
+
+4) After FPGA is programmed, PCIe controller must be identified. As PCIe controller on FPGA is not enabled by default, BIOS & OS cannot recognize it straight after FPGA programming. Some of the motherboards are capable of identifying new PCIe device through rescan operation. Example rescan.sh script is supplied inside as_miner_*/. If it works
+"sudo ./rescan.sh"
+command should be able to rescan and identify PCIe controller(s) However, if rescan does not help then, in case of top.mcs full power cycle is required, in case of top.bit warm (soft) restart is required.
+Whenever PCIe controller on the FPGA is recognized "lspci | grep ad22" should print something like:
+05:00.0 Serial controller: Device ad22:0010
+Make sure that the number of ad22:0010 devices is equal to the number of installed FPGA cards, otherwise retry steps 2-3.
+
+5) Install required dependencies:
+"sudo apt install make gcc libelf-dev libjansson4 libcurl4"
+
+6) Install Xilinx PCIe XDMA drivers.
+Untar as_xdma_driver_*.tar.gz
+"cd as_xdma_driver_*/driver" and run "make" command.
+
+7) Load XDMA module.
+issue "sudo ./load_driver.sh" command. This will scan PCIe lanes and load necessary XDMA module. The loaded XDMA parts can be listed at "ls /dev/xdma*_user" Check and see whether the number of xdma*_user parts is equal to the installed FPGAs. If not all or none is seen then retry steps 2-3 and 5. There could be issues with PCIe recognition. The solution is either try to reprogram again and soft restart or do a proper top.mcs flashing with power cycle. In case there are issues with XDMA module itself, then cd into "as_xdma_driver_*/driver", issue "make clean" and then "make" again.
+NOTE! Ubuntu pushes kernel updates in the background approximately every week. Unfortunately this requires XDMA module re-compilation through "make clean" and "make"
+
+The following message indicates that drivers are loaded and FPGAs are recognized:
+Loading driver...
+The Kernel module installed correctly and the xmda devices were recognized.
+DONE
+8) Start miner by following the format, which is applicable to you. Please make sure to include "-k <hash>" key part into the command, cause this allows us to identify the particular customer. If -k flag is not provided, or the key is not recognized then Fee server will not unlock FPGAs.
+
+a) Simple run. Miner software will identify all the pairs and then start mining:
+sudo ./as_miner -o stratum+tcp://<url>:<port> -u <account> -p <password> -k <key>
+b) Selecting particular list of chains:
+sudo ./as_miner -o stratum+tcp://<url>:<port> -u <account> -p <password> -k <key> -F -s <start_num> -e <end_number>
+To be able to run multiple instances of the miner on the same rig, please initially execute "sudo ./as_miner -d", which will scan all chains and save info into "chainlist" file. After initial scan, execute miner with additional flags of "-F -s <start_num> -e <end_num>", where <start_num> and <end_num> correspond to the particular pair ID. So if the scan identified 6 pairs, one example of running first 2 pairs and then 4 pairs would be:
+First two pairs -> "-F -s 0 -e 1"
+Next four pairs -> "-F -s 2 -e 5"
+c) Select a pair and run miner for two different customers. Note only one -k <key> is required. To be able to run at even lower granularity please select only a single thread (say like "-F -s 1 -e 1") and add second user stratum details through the Capital letter flags. <start_num> and <end_num> must match.
+sudo ./as_miner -o stratum+tcp://<url_1>:<port_1> -u <account_1> -p x -O stratum+tcp://<url_2>:<port_2> -U <account_2 -P x -k <key> -F -s <start_num> -e <end_num>
+
+Your account key : 9f2ca5dc65fe000f78fb33d63012abc3
+
+Download: as_miner_2.3.5.tar.gz
+
+Download: as_miner_x16rv2_3.1.2.tar.gz
+
+Download: as_miner_x16rv2_3.2.0.tar.gz
+
+Download: as_x16r_bitstreams_2.2.tar.gz
+
+Download: as_x16rv2_bitstreams_3.1.tar.gz
+
+Download: as_x16rv2_bitstreams_3.2.tar.gz
+
+Download: as_xdma_driver_1.0.tar.gz
